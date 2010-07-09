@@ -18,6 +18,9 @@ extern int oneline;
 extern int timestamp;
 extern char * _SL_;
 
+#ifndef IPPROTO_UDP
+#define IPPROTO_UDP	17
+#endif
 #ifndef IPPROTO_ESP
 #define IPPROTO_ESP	50
 #endif
