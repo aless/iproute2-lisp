@@ -71,6 +71,7 @@ static const struct cmd {
 	{ "link",	do_iplink },
 	{ "tunnel",	do_iptunnel },
 	{ "tunl",	do_iptunnel },
+	{ "map",	do_map },
 	{ "tuntap",	do_iptuntap },
 	{ "tap",	do_iptuntap },
 	{ "monitor",	do_ipmonitor },
