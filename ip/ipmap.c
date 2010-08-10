@@ -2,6 +2,7 @@
 #include <netlink/genl/genl.h>
 #include <netlink/genl/ctrl.h>
 #include <linux/lisp.h>
+#include <errno.h>
 
 #include "utils.h"
 
@@ -35,6 +36,17 @@ static int parse_cb(struct nl_msg *msg, void *arg)
 	return 0;
 }
 
+static int add_error_handler(struct sockaddr_nl *nla, struct nlmsgerr *err,
+			     void *arg)
+{
+	switch(err->error){
+	case -EEXIST:
+		printf("EID prefix already exists.\n");
+		exit(1);
+	}
+	return 0;
+}
+
 
 int map_add_genl(int cmd, struct map *m)
 {
@@ -42,8 +54,12 @@ int map_add_genl(int cmd, struct map *m)
 	struct nl_msg *msg;
 	int family;
 	struct nlattr *at;
+	struct nl_cb *cb;
 
 	printf("Adding map: %x/%d via %x\n", m->eid.data[0], m->eid.bitlen, m->rloc.data[0]);
+
+	cb = nl_cb_alloc(NL_CB_DEFAULT);
+	nl_cb_err(cb, NL_CB_CUSTOM, add_error_handler, NULL);
 
 	sock = nl_handle_alloc();
 	genl_connect(sock);
@@ -53,7 +69,7 @@ int map_add_genl(int cmd, struct map *m)
 	msg = nlmsg_alloc();
 
 	genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, family, 0,
-		    NLM_F_REQUEST | NLM_F_ACK | NLM_F_ECHO, cmd, 1);
+		    NLM_F_REQUEST | NLM_F_ACK, cmd, 1);
 	nla_put_u8(msg, LISP_GNL_ATTR_MAPF, m->flags);
 
 	at = nla_nest_start(msg, LISP_GNL_ATTR_MAP);
@@ -69,13 +85,7 @@ int map_add_genl(int cmd, struct map *m)
 	nl_send_auto_complete(sock, msg);
 	nlmsg_free(msg);
 
-	nl_socket_modify_cb(sock, NL_CB_VALID, NL_CB_CUSTOM, parse_cb, NULL);
-	//nl_socket_modify_cb(sock, NL_CB_ACK, NL_CB_CUSTOM, parse_cb, NULL);
-	//nl_socket_modify_cb(sock, NL_CB_ACK, NL_CB_DEBUG, parse_cb, NULL);
-
-	nl_recvmsgs_default(sock);
-
-	return 0;
+	return nl_recvmsgs(sock, cb);
 }
 
 static int parse_args(int argc, char **argv, int cmd, struct map *m)
