@@ -1,16 +1,16 @@
 #include <netlink/netlink.h>
 #include <netlink/genl/genl.h>
 #include <netlink/genl/ctrl.h>
-
 #include <linux/lisp.h>
 
 #include "utils.h"
 
 struct map {
-  __be32	eid;
-  __be32	rloc;
-  int		prio;
-  int		weight;
+	inet_prefix	eid;
+	inet_prefix	rloc;
+	int		prio;
+	int		weight;
+	unsigned char	flags;
 };
 
 static void usage(void) __attribute__((noreturn));
@@ -29,58 +29,54 @@ static void usage(void)
 
 static int parse_cb(struct nl_msg *msg, void *arg)
 {
-  struct nlmsghdr *nlh = nlmsg_hdr(msg);
-  struct nlattr *attrs[LISP_GNL_ATTR_MAX+1];
+	struct nlmsghdr *nlh = nlmsg_hdr(msg);
 
-  // Validate message and parse attributes
-  //genlmsg_parse(nlh, 0, attrs, LISP_MAP_A_MAX, policy);
-
-  /*
-  if (attrs[ATTR_FOO]) {
-    uint32_t value = nla_get_u32(attrs[ATTR_FOO]);
-    ...
-      }
-  */
-  return 0;
+	printf("response type: %d\n", nlh->nlmsg_type);
+	return 0;
 }
 
 
 int map_add_genl(int cmd, struct map *m)
 {
-  struct nl_handle *sock;
-  struct nl_msg *msg;
-  int family;
+	struct nl_handle *sock;
+	struct nl_msg *msg;
+	int family;
+	struct nlattr *at;
 
-  printf("sending eid: %x rloc: %x prio: %d wei: %d\n", m->eid, m->rloc, m->prio, m->weight);
+	printf("Adding map: %x/%d via %x\n", m->eid.data[0], m->eid.bitlen, m->rloc.data[0]);
 
-  sock = nl_handle_alloc();
-  genl_connect(sock);
+	sock = nl_handle_alloc();
+	genl_connect(sock);
 
-  family = genl_ctrl_resolve(sock, LISP_GNL_NAME);
+	family = genl_ctrl_resolve(sock, LISP_GNL_NAME);
 
-  msg = nlmsg_alloc();
-  genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, family, 0, NLM_F_ECHO,
-	      cmd, 1);
+	msg = nlmsg_alloc();
 
-  nla_put_u32(msg, LISP_GNL_ATTR_EID, m->eid);
-  nla_put_u32(msg, LISP_GNL_ATTR_RLOC, m->rloc);
-  nla_put_u8(msg, LISP_GNL_ATTR_PRIO, m->prio);
-  nla_put_u8(msg, LISP_GNL_ATTR_WEIGHT, m->weight);
+	genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, family, 0,
+		    NLM_F_REQUEST | NLM_F_ACK | NLM_F_ECHO, cmd, 1);
+	nla_put_u8(msg, LISP_GNL_ATTR_MAPF, m->flags);
 
-  nl_send_auto_complete(sock, msg);
+	at = nla_nest_start(msg, LISP_GNL_ATTR_MAP);
 
-  nlmsg_free(msg);
+	nla_put_u32(msg, LISP_GNL_ATTR_MAP_EID, m->eid.data[0]);
+	nla_put_u32(msg, LISP_GNL_ATTR_MAP_EIDLEN, m->eid.bitlen);
+	nla_put_u32(msg, LISP_GNL_ATTR_MAP_RLOC, m->rloc.data[0]);
+	nla_put_u8(msg, LISP_GNL_ATTR_MAP_PRIO, m->prio);
+	nla_put_u8(msg, LISP_GNL_ATTR_MAP_WEIGHT, m->weight);
 
-  // Prepare socket to receive the answer by specifying the callback
-  // function to be called for valid messages.
-  nl_socket_modify_cb(sock, NL_CB_VALID, NL_CB_CUSTOM, parse_cb, NULL);
+	nla_nest_end(msg, at);
 
-  // Wait for the answer and receive it
-  nl_recvmsgs_default(sock);
+	nl_send_auto_complete(sock, msg);
+	nlmsg_free(msg);
 
-  return 0;
+	nl_socket_modify_cb(sock, NL_CB_VALID, NL_CB_CUSTOM, parse_cb, NULL);
+	//nl_socket_modify_cb(sock, NL_CB_ACK, NL_CB_CUSTOM, parse_cb, NULL);
+	//nl_socket_modify_cb(sock, NL_CB_ACK, NL_CB_DEBUG, parse_cb, NULL);
+
+	nl_recvmsgs_default(sock);
+
+	return 0;
 }
-
 
 static int parse_args(int argc, char **argv, int cmd, struct map *m)
 {
@@ -92,10 +88,10 @@ static int parse_args(int argc, char **argv, int cmd, struct map *m)
 	while (argc > 0) {
 		if (strcmp(*argv, "eid") == 0) {
 			NEXT_ARG();
-			m->eid = get_addr32(*argv);
+			get_prefix(&m->eid, *argv, preferred_family);
 		} else if (strcmp(*argv, "rloc") == 0) {
 			NEXT_ARG();
-			m->rloc = get_addr32(*argv);
+			get_addr(&m->rloc, *argv, preferred_family);
 		} else if (strcmp(*argv, "prio") == 0) {
 			unsigned uval;
 			NEXT_ARG();
@@ -120,18 +116,31 @@ static int parse_args(int argc, char **argv, int cmd, struct map *m)
 		argc--; argv++;
 	}
 
+	if (m->eid.data[0] == 0) {
+		fprintf(stderr, "EID prefix not specified.\n");
+		exit(1);
+	}
+
+	if (m->rloc.data[0] == 0) {
+		fprintf(stderr, "RLOC not specified.\n");
+		exit(1);
+	}
+
 	return 0;
 }
 
-static int do_show(int argc, char **argv)
+static int do_show(int cmd, int argc, char **argv)
 {
-	return -1;
+	return 0;
 }
-
 
 static int do_add(int cmd, int argc, char **argv)
 {
 	struct map m;
+
+	m.prio = 0;
+	m.weight = 0;
+	m.flags = LISP_MAP_F_LOCAL;
 
 	if (parse_args(argc, argv, cmd, &m) < 0)
 		return -1;
@@ -155,19 +164,16 @@ int do_map(int argc, char **argv)
 	if (argc > 0) {
 		if (matches(*argv, "add") == 0)
 		  return do_add(LISP_GNL_CMD_ADDMAP, argc-1, argv+1);
-		/*		if (matches(*argv, "change") == 0)
-			return do_add(SIOCCHGTUNNEL, argc-1, argv+1);
-		if (matches(*argv, "del") == 0)
-			return do_del(argc-1, argv+1);
+		/* TODO: del */
 		if (matches(*argv, "show") == 0 ||
 		    matches(*argv, "lst") == 0 ||
 		    matches(*argv, "list") == 0)
-			return do_show(argc-1, argv+1);
-		*/
+		  return do_show(LISP_GNL_CMD_SHOWMAP, argc-1, argv+1);
+
 		if (matches(*argv, "help") == 0)
 			usage();
 	} else
-		return do_show(0, NULL);
+		return do_show(LISP_GNL_CMD_SHOWMAP, 0, NULL);
 
 	fprintf(stderr, "Command \"%s\" is unknown, try \"ip map help\".\n", *argv);
 	exit(-1);
