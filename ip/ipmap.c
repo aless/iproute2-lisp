@@ -8,6 +8,7 @@
 
 #define PREFLEN 19
 #define ADDRLEN 16
+#define EIDFLEN 17
 
 struct map {
 	inet_prefix	eid;
@@ -15,6 +16,7 @@ struct map {
 	int		prio;
 	int		weight;
 	unsigned char	flags;
+	unsigned char	rlocflags;
 };
 
 static void usage(void) __attribute__((noreturn));
@@ -44,12 +46,25 @@ static int parse_show(struct nl_msg *msg, void *arg)
 	struct nlmsghdr *nlh = nlmsg_hdr(msg);
 	struct nlattr *attrs[LISP_GNL_ATTR_MAX+1], *att;
 	int err, cnt;
-	char eid[PREFLEN + 4];
-	char saddr[ADDRLEN];
+	unsigned char f;
+	char map[PREFLEN + 4 + EIDFLEN] = "";
+	char saddr[ADDRLEN] = "";
+	char seidf[EIDFLEN] = "";
+	int newmap = 1;
 
 	struct in_addr addr;
 
 	err = genlmsg_parse(nlh, 0, attrs, LISP_GNL_ATTR_MAX, lisp_gnl_policy);
+
+	if (nla_type(attrs[LISP_GNL_ATTR_MAPF]) == LISP_GNL_ATTR_MAPF) {
+		f = nla_get_u8(attrs[LISP_GNL_ATTR_MAPF]);
+		if (f&LISP_MAP_F_UP)
+			strcat(seidf, " up");
+		if (f&LISP_MAP_F_LOCAL)
+			strcat(seidf, " local");
+		if (f&LISP_MAP_F_STATIC)
+			strcat(seidf, " static");
+	}
 
 	nla_for_each_nested(att, attrs[LISP_GNL_ATTR_MAP], cnt) {
 		switch(nla_type(att)) {
@@ -58,14 +73,33 @@ static int parse_show(struct nl_msg *msg, void *arg)
 			format_host(AF_INET, 0, &addr, saddr, 16);
 			break;
 		case LISP_GNL_ATTR_MAP_EIDLEN:
-			sprintf(eid, "eid %s/%d", saddr, nla_get_u8(att));
+			sprintf(map, "eid %s/%d%s", saddr, nla_get_u8(att), seidf);
 			break;
 		case LISP_GNL_ATTR_MAP_RLOC:
 			addr.s_addr = nla_get_u32(att);
-			printf("%s via rloc %s\n", eid, format_host(AF_INET, 0, &addr, saddr, 16));
+			if (newmap)
+				newmap = 0;
+			else
+				printf("\n");
+			printf("%s via rloc %s", map, format_host(AF_INET, 0, &addr, saddr, 16));
+			break;
+		case LISP_GNL_ATTR_MAP_WEIGHT:
+			printf(" weight %d", nla_get_u8(att));
+			break;
+		case LISP_GNL_ATTR_MAP_PRIO:
+			printf(" prio %d", nla_get_u8(att));
+			break;
+		case LISP_GNL_ATTR_MAP_RLOCF:
+			f = nla_get_u8(att);
+			if (f&LISP_RLOC_F_REACH)
+				printf(" rechable");
+			else
+				printf(" unrechable");
 			break;
 		}
 	}
+
+	printf("\n");
 
 	return NL_OK;
 }
@@ -90,8 +124,6 @@ int map_add_genl(int cmd, struct map *m)
 	struct nlattr *at;
 	struct nl_cb *cb;
 
-	printf("Adding map: %x/%d via %x\n", m->eid.data[0], m->eid.bitlen, m->rloc.data[0]);
-
 	cb = nl_cb_alloc(NL_CB_DEFAULT);
 	nl_cb_err(cb, NL_CB_CUSTOM, add_error_handler, NULL);
 
@@ -113,6 +145,7 @@ int map_add_genl(int cmd, struct map *m)
 	nla_put_u32(msg, LISP_GNL_ATTR_MAP_RLOC, m->rloc.data[0]);
 	nla_put_u8(msg, LISP_GNL_ATTR_MAP_PRIO, m->prio);
 	nla_put_u8(msg, LISP_GNL_ATTR_MAP_WEIGHT, m->weight);
+	nla_put_u8(msg, LISP_GNL_ATTR_MAP_RLOCF, m->rlocflags);
 
 	nla_nest_end(msg, at);
 
@@ -212,7 +245,8 @@ static int do_add(int cmd, int argc, char **argv)
 
 	m.prio = 0;
 	m.weight = 0;
-	m.flags = LISP_MAP_F_LOCAL;
+	m.flags = 0;
+	m.rlocflags = 0;
 
 	if (parse_args(argc, argv, cmd, &m) < 0)
 		return -1;
