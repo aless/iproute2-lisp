@@ -116,7 +116,7 @@ static int add_error_handler(struct sockaddr_nl *nla, struct nlmsgerr *err,
 }
 
 
-int map_add_genl(int cmd, struct map *m)
+int map_mod_genl(int cmd, struct map *m)
 {
 	struct nl_handle *sock;
 	struct nl_msg *msg;
@@ -239,7 +239,7 @@ static int do_show(int cmd, int argc, char **argv)
 	return map_show_genl(cmd);
 }
 
-static int do_add(int cmd, int argc, char **argv)
+static int do_mod(int cmd, int argc, char **argv)
 {
 	struct map m;
 
@@ -251,7 +251,7 @@ static int do_add(int cmd, int argc, char **argv)
 	if (parse_args(argc, argv, cmd, &m) < 0)
 		return -1;
 
-	return map_add_genl(cmd, &m);
+	return map_mod_genl(cmd, &m);
 }
 
 int do_map(int argc, char **argv)
@@ -269,8 +269,9 @@ int do_map(int argc, char **argv)
 
 	if (argc > 0) {
 		if (matches(*argv, "add") == 0)
-		  return do_add(LISP_GNL_CMD_ADDMAP, argc-1, argv+1);
-		/* TODO: del */
+		  return do_mod(LISP_GNL_CMD_ADDMAP, argc-1, argv+1);
+		if (matches(*argv, "del") == 0)
+		  return do_mod(LISP_GNL_CMD_DELMAP, argc-1, argv+1);
 		if (matches(*argv, "show") == 0 ||
 		    matches(*argv, "lst") == 0 ||
 		    matches(*argv, "list") == 0)

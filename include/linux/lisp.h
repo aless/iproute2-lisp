@@ -68,7 +68,7 @@ struct lisphdr {
 		__be32	lsb;
 		struct {
 			__u32	instance_id:24,
-				lsb:8;
+				slsb:8;
 		};
 	};
 };
@@ -118,6 +118,7 @@ static struct nla_policy lisp_gnl_map_policy[LISP_GNL_ATTR_MAP_MAX + 1] = {
 enum {
 	LISP_GNL_CMD_UNSPEC,
 	LISP_GNL_CMD_ADDMAP,
+	LISP_GNL_CMD_DELMAP,
 	LISP_GNL_CMD_SHOWMAP,
 	__LISP_GNL_CMD_MAX,
 };
