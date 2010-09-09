@@ -124,6 +124,9 @@ int map_mod_genl(int cmd, struct map *m)
 	struct nlattr *at;
 	struct nl_cb *cb;
 
+	if (!m->ttl)
+		m->flags |= LISP_MAP_F_STATIC;
+
 	cb = nl_cb_alloc(NL_CB_DEFAULT);
 	nl_cb_err(cb, NL_CB_CUSTOM, add_error_handler, NULL);
 
