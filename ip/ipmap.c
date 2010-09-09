@@ -206,7 +206,7 @@ static int parse_args(int argc, char **argv, int cmd, struct map *m)
 			if (get_unsigned(&uval, *argv, 0))
 				invarg("invalid PRIO\n", *argv);
 			if (uval > 255)
-				invarg("TTL must be <=255\n", *argv);
+				invarg("PRIO must be <=255\n", *argv);
 			m->prio = uval;
 		} else if (strcmp(*argv, "weight") == 0) {
 			unsigned uval;
@@ -214,7 +214,7 @@ static int parse_args(int argc, char **argv, int cmd, struct map *m)
 			if (get_unsigned(&uval, *argv, 0))
 				invarg("invalid WEIGHT\n", *argv);
 			if (uval > 255)
-				invarg("TTL must be <=255\n", *argv);
+				invarg("WEIGHT must be <=255\n", *argv);
 			m->weight = uval;
 		} else {
 			if (matches(*argv, "help") == 0)
@@ -229,7 +229,7 @@ static int parse_args(int argc, char **argv, int cmd, struct map *m)
 		exit(1);
 	}
 
-	if (m->rloc.data[0] == 0) {
+	if (cmd == LISP_GNL_CMD_ADDMAP && m->rloc.data[0] == 0) {
 		fprintf(stderr, "RLOC not specified.\n");
 		exit(1);
 	}
