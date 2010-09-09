@@ -8,15 +8,16 @@
 
 #define PREFLEN 19
 #define ADDRLEN 16
-#define EIDFLEN 17
+#define EIDFLEN 23
 
 struct map {
 	inet_prefix	eid;
 	inet_prefix	rloc;
-	int		prio;
-	int		weight;
+	unsigned char	prio;
+	unsigned char	weight;
 	unsigned char	flags;
 	unsigned char	rlocflags;
+	unsigned long	ttl;
 };
 
 static void usage(void) __attribute__((noreturn));
@@ -26,6 +27,7 @@ static void usage(void)
 	fprintf(stderr, "Usage: ip map { add | change | del | show }\n");
 	fprintf(stderr, "          [ eid ADDR ] [ rloc ADDR ]\n");
 	fprintf(stderr, "          [ prio PRIO ] [ weight WEIGHT ]\n");
+	fprintf(stderr, "          [ ttl TTL ]\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Where: ADDR   := { IP_ADDRESS }\n");
 	fprintf(stderr, "       PRIO   := { 0..255 }\n");
@@ -51,6 +53,7 @@ static int parse_show(struct nl_msg *msg, void *arg)
 	char saddr[ADDRLEN] = "";
 	char seidf[EIDFLEN] = "";
 	int newmap = 1;
+	unsigned int min = 0;
 
 	struct in_addr addr;
 
@@ -64,6 +67,15 @@ static int parse_show(struct nl_msg *msg, void *arg)
 			strcat(seidf, " local");
 		if (f&LISP_MAP_F_STATIC)
 			strcat(seidf, " static");
+	}
+
+	if (nla_type(attrs[LISP_GNL_ATTR_MAPTTL]) == LISP_GNL_ATTR_MAPTTL) {
+		min  = nla_get_u8(attrs[LISP_GNL_ATTR_MAPTTL]);
+		if (min) {
+			char sttl[6] = "";
+			sprintf(sttl, " ttl %d", min);
+			strcat(seidf, sttl);
+		}
 	}
 
 	nla_for_each_nested(att, attrs[LISP_GNL_ATTR_MAP], cnt) {
@@ -139,7 +151,9 @@ int map_mod_genl(int cmd, struct map *m)
 
 	genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, family, 0,
 		    NLM_F_REQUEST | NLM_F_ACK, cmd, 1);
+
 	nla_put_u8(msg, LISP_GNL_ATTR_MAPF, m->flags);
+	nla_put_u32(msg, LISP_GNL_ATTR_MAPTTL, m->ttl);
 
 	at = nla_nest_start(msg, LISP_GNL_ATTR_MAP);
 
@@ -216,6 +230,14 @@ static int parse_args(int argc, char **argv, int cmd, struct map *m)
 			if (uval > 255)
 				invarg("WEIGHT must be <=255\n", *argv);
 			m->weight = uval;
+		} else if (strcmp(*argv, "ttl") == 0) {
+			unsigned uval;
+			NEXT_ARG();
+			if (get_unsigned(&uval, *argv, 0))
+				invarg("invalid TTL\n", *argv);
+			if (uval > 255)
+				invarg("TTL must be <=255\n", *argv);
+			m->ttl = uval;
 		} else {
 			if (matches(*argv, "help") == 0)
 				usage();
@@ -250,6 +272,7 @@ static int do_mod(int cmd, int argc, char **argv)
 	m.weight = 0;
 	m.flags = 0;
 	m.rlocflags = 0;
+	m.ttl = 0;
 
 	if (parse_args(argc, argv, cmd, &m) < 0)
 		return -1;
