@@ -22,7 +22,7 @@ LDLIBS=-lresolv
 ADDLIB=
 
 #libnl needed by LISP tunnels
-LDLIBS+=-lnl
+LDLIBS+=-lnl-genl
 
 #options for decnet
 ADDLIB+=dnet_ntop.o dnet_pton.o

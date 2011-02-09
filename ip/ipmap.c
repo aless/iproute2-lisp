@@ -140,7 +140,7 @@ int map_mod_genl(int cmd, struct map *m)
 	cb = nl_cb_alloc(NL_CB_DEFAULT);
 	nl_cb_err(cb, NL_CB_CUSTOM, add_error_handler, NULL);
 
-	sock = nl_handle_alloc();
+	sock = nl_socket_alloc();
 	genl_connect(sock);
 
 	family = genl_ctrl_resolve(sock, LISP_GNL_NAME);
@@ -182,7 +182,7 @@ int map_show_genl(int cmd)
 	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, parse_show, NULL);
 	nl_cb_err(cb, NL_CB_CUSTOM, add_error_handler, NULL);
 
-	sock = nl_handle_alloc();
+	sock = nl_socket_alloc();
 	genl_connect(sock);
 
 	family = genl_ctrl_resolve(sock, LISP_GNL_NAME);
