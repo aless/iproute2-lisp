@@ -8,7 +8,7 @@
 
 #define PREFLEN 19
 #define ADDRLEN 16
-#define EIDFLEN 23
+#define EIDFLEN 100
 
 struct map {
 	inet_prefix	eid;
@@ -71,11 +71,9 @@ static int parse_show(struct nl_msg *msg, void *arg)
 
 	if (nla_type(attrs[LISP_GNL_ATTR_MAPTTL]) == LISP_GNL_ATTR_MAPTTL) {
 		min  = nla_get_u8(attrs[LISP_GNL_ATTR_MAPTTL]);
-		if (min) {
-			char sttl[6] = "";
-			sprintf(sttl, " ttl %d", min);
-			strcat(seidf, sttl);
-		}
+		char sttl[30] = "";
+		sprintf(sttl, " ttl %d", min);
+		strcat(seidf, sttl);
 	}
 
 	nla_for_each_nested(att, attrs[LISP_GNL_ATTR_MAP], cnt) {
