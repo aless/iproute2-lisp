@@ -83,7 +83,7 @@ static int parse_show(struct nl_msg *msg, void *arg)
 			format_host(AF_INET, 0, &addr, saddr, 16);
 			break;
 		case LISP_GNL_ATTR_MAP_EIDLEN:
-			sprintf(map, "eid %s/%d%s", saddr, nla_get_u8(att), seidf);
+			sprintf(map, "eid %s/%d%s", saddr, nla_get_u16(att), seidf);
 			break;
 		case LISP_GNL_ATTR_MAP_RLOC:
 			addr.s_addr = nla_get_u32(att);
@@ -156,7 +156,7 @@ int map_mod_genl(int cmd, struct map *m)
 	at = nla_nest_start(msg, LISP_GNL_ATTR_MAP);
 
 	nla_put_u32(msg, LISP_GNL_ATTR_MAP_EID, m->eid.data[0]);
-	nla_put_u32(msg, LISP_GNL_ATTR_MAP_EIDLEN, m->eid.bitlen);
+	nla_put_u16(msg, LISP_GNL_ATTR_MAP_EIDLEN, m->eid.bitlen);
 	nla_put_u32(msg, LISP_GNL_ATTR_MAP_RLOC, m->rloc.data[0]);
 	nla_put_u8(msg, LISP_GNL_ATTR_MAP_PRIO, m->prio);
 	nla_put_u8(msg, LISP_GNL_ATTR_MAP_WEIGHT, m->weight);
